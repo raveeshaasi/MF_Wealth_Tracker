@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0284c7">
+  <title>MF Wealth Tracker</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- SheetJS for Reading Excel (.xlsx, .xls) Files -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- PDF.js for Reading PDF Files -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  
+  <script>
+    if (window.pdfjsLib) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    }
+
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+              900: '#0c4a6e',
+            },
+            emerald: {
+              500: '#10b981',
+              600: '#059669',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 dark:bg-slate-900 text-gray-800 dark:text-gray-100 min-h-screen pb-20 md:pb-6 transition-colors duration-200">
+
+  <!-- FIRST-LAUNCH AUTHENTICATION / WELCOME MODAL -->
+  <div id="welcomeAuthModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl space-y-5 border border-gray-100 dark:border-slate-700 text-center">
+      <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white text-2xl shadow-lg shadow-brand-500/30">
+        <i class="fa-solid fa-chart-pie"></i>
+      </div>
+      <div>
+        <h2 class="text-xl font-extrabold text-gray-900 dark:text-white">MF Wealth Tracker</h2>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Goal-Based Mutual Fund Portfolio Allocator</p>
+      </div>
+
+      <div class="space-y-3 pt-2">
+        <button onclick="authChoiceGoogle()" class="w-full py-3 px-4 bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 border border-gray-300 dark:border-slate-600 text-gray-800 dark:text-gray-100 rounded-2xl font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition">
+          <i class="fa-brands fa-google text-red-500 text-sm"></i> Sign in with Google (Cloud Backup)
+        </button>
+
+        <button onclick="authChoiceGuest()" class="w-full py-3 px-4 bg-brand-600 hover:bg-brand-700 text-white rounded-2xl font-semibold text-xs flex items-center justify-center gap-2 shadow-md shadow-brand-500/20 transition">
+          <i class="fa-solid fa-mobile-screen-button text-sm"></i> Continue as Guest (Local Only)
+        </button>
+      </div>
+
+      <p class="text-[10px] text-gray-400 leading-tight">
+        Guest data is saved locally on your device. You can log in anytime to sync your portfolio to the cloud.
+      </p>
+    </div>
+  </div>
+
+  <!-- APP CONTAINER -->
+  <div id="app" class="max-w-md md:max-w-3xl mx-auto min-h-screen flex flex-col shadow-xl bg-white dark:bg-slate-900 border-x border-gray-100 dark:border-slate-800">
+
+    <!-- TOP HEADER BAR WITH PROFILE BADGE & MODE TOGGLE -->
+    <header class="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-gray-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-brand-500/20">
+          <i class="fa-solid font-bold fa-chart-pie text-sm"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-gray-900 dark:text-white text-base leading-tight">MF <span class="text-brand-600 dark:text-brand-500">Wealth Tracker</span></h1>
+          <p class="text-[10px] text-gray-500 dark:text-gray-400 font-medium">CAS Goal Allocation Dashboard</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <!-- Live NAV Sync Button -->
+        <button id="syncNavBtn" title="Sync Live NAVs" class="p-2 text-xs text-gray-500 dark:text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 transition">
+          <i class="fa-solid fa-arrows-rotate" id="syncIcon"></i>
+        </button>
+
+        <!-- Mode Toggle Switch (Demo vs Actual) -->
+        <div class="flex bg-gray-100 dark:bg-slate-800 p-0.5 rounded-xl border border-gray-200 dark:border-slate-700 text-[10px] font-bold">
+          <button id="modeBtnActual" onclick="switchAppMode('actual')" class="px-2 py-1 rounded-lg transition text-gray-500 dark:text-gray-400">Actual</button>
+          <button id="modeBtnDemo" onclick="switchAppMode('demo')" class="px-2 py-1 rounded-lg transition bg-amber-500 text-white shadow-sm">Demo</button>
+        </div>
+
+        <!-- Profile Badge Container -->
+        <div id="authContainer" class="relative">
+          <!-- Injected dynamically via JS -->
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN BODY CONTAINER -->
+    <main class="flex-1 p-4 overflow-y-auto no-scrollbar space-y-5">
+
+      <!-- GUEST / BACKUP BANNER -->
+      <div id="guestBanner" class="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl flex items-center justify-between text-xs text-amber-800 dark:text-amber-300">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-hard-drive text-amber-500 text-sm"></i>
+          <div>
+            <p class="font-semibold text-[11px]" id="authModeLabel">Guest Mode (Stored on Phone)</p>
+            <p class="text-[10px] opacity-80" id="authModeSub">Log in to enable cloud backup.</p>
+          </div>
+        </div>
+        <button onclick="handleGoogleSignIn()" class="px-2.5 py-1 bg-amber-600 text-white rounded-xl font-medium text-[11px] hover:bg-amber-700 transition shadow-sm whitespace-nowrap">
+          Sign In
+        </button>
+      </div>
+
+      <!-- PORTFOLIO SUMMARY CARD -->
+      <div class="bg-gradient-to-br from-slate-900 to-brand-900 text-white p-5 rounded-3xl shadow-lg relative overflow-hidden">
+        <div class="absolute -right-6 -bottom-6 w-32 h-32 bg-brand-500/10 rounded-full blur-2xl pointer-events-none"></div>
+        
+        <div class="flex justify-between items-start mb-3">
+          <div>
+            <span class="text-xs uppercase tracking-wider text-brand-200 font-medium">Total Portfolio Value</span>
+            <h2 id="totalValText" class="text-2xl md:text-3xl font-extrabold tracking-tight mt-0.5">₹0</h2>
+          </div>
+          <span id="overallGainBadge" class="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold">
+            <i class="fa-solid fa-arrow-trend-up text-[10px]"></i> <span id="totalGainPct">0.0%</span>
+          </span>
+        </div>
+
+        <!-- ASSET ALLOCATION BREAKDOWN (EQUITY / DEBT / COMMODITIES) -->
+        <div class="mb-4 pt-2 border-t border-white/10 space-y-1.5">
+          <div class="flex justify-between items-center text-[11px]">
+            <span class="text-gray-300 font-medium">Asset Allocation</span>
+            <span class="text-gray-400 text-[10px]" id="assetSummaryText">Eq: 0% | Debt: 0% | Gold: 0%</span>
+          </div>
+
+          <!-- Multi-color Segment Bar -->
+          <div class="w-full h-2.5 bg-black/30 rounded-full overflow-hidden flex">
+            <div id="barEquity" class="bg-emerald-400 h-full transition-all duration-500" style="width: 0%" title="Equity"></div>
+            <div id="barDebt" class="bg-sky-400 h-full transition-all duration-500" style="width: 0%" title="Debt"></div>
+            <div id="barCommodity" class="bg-amber-400 h-full transition-all duration-500" style="width: 0%" title="Commodities/Gold"></div>
+          </div>
+
+          <!-- Color Key / Chips -->
+          <div class="flex items-center gap-3 pt-1 text-[10px] text-gray-300">
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> Equity: <strong id="pctEquityText">0%</strong></span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-sky-400"></span> Debt: <strong id="pctDebtText">0%</strong></span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400"></span> Gold/Other: <strong id="pctCommodityText">0%</strong></span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 pt-3 border-t border-white/10 text-xs">
+          <div>
+            <p class="text-gray-400 font-normal">Invested Value</p>
+            <p id="totalInvestedText" class="font-semibold text-gray-100 mt-0.5">₹0</p>
+          </div>
+          <div>
+            <p class="text-gray-400 font-normal">Allocated to Goals</p>
+            <p id="totalAllocatedText" class="font-semibold text-brand-300 mt-0.5">₹0 (0%)</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- NAVIGATION TABS -->
+      <div class="flex bg-gray-100 dark:bg-slate-800 p-1 rounded-2xl text-xs font-semibold">
+        <button onclick="switchTab('goals')" id="tab-goals" class="flex-1 py-2.5 rounded-xl transition text-center text-brand-600 dark:text-brand-400 bg-white dark:bg-slate-700 shadow-sm">
+          <i class="fa-solid fa-bullseye mr-1.5"></i>Goals
+        </button>
+        <button onclick="switchTab('funds')" id="tab-funds" class="flex-1 py-2.5 rounded-xl transition text-center text-gray-500 dark:text-gray-400">
+          <i class="fa-solid fa-wallet mr-1.5"></i>Imported MFs
+        </button>
+        <button onclick="switchTab('allocations')" id="tab-allocations" class="flex-1 py-2.5 rounded-xl transition text-center text-gray-500 dark:text-gray-400">
+          <i class="fa-solid fa-diagram-project mr-1.5"></i>Map Goals
+        </button>
+      </div>
+
+      <!-- TAB 1: GOALS VIEW -->
+      <div id="view-goals" class="space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="font-bold text-gray-900 dark:text-white text-sm flex items-center gap-2">
+            <i class="fa-solid fa-crosshairs text-brand-500"></i> My Life Goals
+          </h3>
+          <button onclick="openGoalModal()" class="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-md shadow-brand-500/20 transition">
+            <i class="fa-solid fa-plus text-[10px]"></i> Add Goal
+          </button>
+        </div>
+
+        <!-- Goals List Container -->
+        <div id="goalsList" class="space-y-3">
+          <!-- Injected dynamically -->
+        </div>
+      </div>
+
+      <!-- TAB 2: MUTUAL FUNDS VIEW -->
+      <div id="view-funds" class="space-y-4 hidden">
+        <div class="flex justify-between items-center">
+          <div>
+            <h3 class="font-bold text-gray-900 dark:text-white text-sm">Imported Mutual Funds</h3>
+            <p class="text-[11px] text-gray-500 dark:text-gray-400">Parsed from CAMS / KFintech CAS</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="openImportModal()" class="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-medium flex items-center gap-1 shadow-md shadow-brand-500/20 transition">
+              <i class="fa-solid fa-file-import text-[10px]"></i> Import CAS
+            </button>
+          </div>
+        </div>
+
+        <!-- Funds List Container -->
+        <div id="fundsList" class="space-y-3">
+          <!-- Injected dynamically -->
+        </div>
+      </div>
+
+      <!-- TAB 3: ALLOCATIONS / MAPPING VIEW -->
+      <div id="view-allocations" class="space-y-4 hidden">
+        <div class="flex justify-between items-center">
+          <div>
+            <h3 class="font-bold text-gray-900 dark:text-white text-sm">Allocate MFs to Goals</h3>
+            <p class="text-[11px] text-gray-500 dark:text-gray-400">Assign fund units or % to custom goals</p>
+          </div>
+          <button onclick="openAllocationModal()" class="px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-medium flex items-center gap-1 shadow-md shadow-brand-500/20 transition">
+            <i class="fa-solid fa-link text-[10px]"></i> New Allocation
+          </button>
+        </div>
+
+        <!-- Allocations Container -->
+        <div id="allocationsList" class="space-y-3">
+          <!-- Injected dynamically -->
+        </div>
+      </div>
+
+    </main>
+
+    <!-- MOBILE BOTTOM NAVBAR -->
+    <nav class="fixed bottom-0 left-0 right-0 max-w-md md:max-w-3xl mx-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-gray-200 dark:border-slate-800 px-6 py-2 flex justify-around items-center z-40">
+      <button onclick="switchTab('goals')" id="nav-goals" class="flex flex-col items-center text-brand-600 dark:text-brand-400 gap-0.5">
+        <i class="fa-solid fa-bullseye text-base"></i>
+        <span class="text-[10px] font-medium">Goals</span>
+      </button>
+      <button onclick="switchTab('funds')" id="nav-funds" class="flex flex-col items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 gap-0.5">
+        <i class="fa-solid fa-wallet text-base"></i>
+        <span class="text-[10px] font-medium">Funds</span>
+      </button>
+      <button onclick="switchTab('allocations')" id="nav-allocations" class="flex flex-col items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 gap-0.5">
+        <i class="fa-solid fa-diagram-project text-base"></i>
+        <span class="text-[10px] font-medium">Mapping</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- MODAL 1: ADD / EDIT GOAL -->
+  <div id="goalModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b dark:border-slate-700 pb-3">
+        <h3 id="goalModalTitle" class="font-bold text-gray-900 dark:text-white text-base">Add Financial Goal</h3>
+        <button onclick="closeModal('goalModal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+      <form id="goalForm" onsubmit="saveGoal(event)" class="space-y-3 text-xs">
+        <input type="hidden" id="goalId" value="">
+        <div>
+          <label class="block font-medium text-gray-700 dark:text-gray-300 mb-1">Goal Name</label>
+          <input type="text" id="goalName" placeholder="e.g. Retirement, Child Higher Education" required class="w-full px-3 py-2 rounded-xl border dark:border-slate-700 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-medium text-gray-700 dark:text-gray-300 mb-1">Target Amount (₹)</label>
+            <input type="number" id="goalTarget" placeholder="2500000" required class="w-full px-3 py-2 rounded-xl border dark:border-slate-700 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none">
+          </div>
+          <div>
+            <label class="block font-medium text-gray-700 dark:text-gray-300 mb-1">Target Year</label>
+            <input type="number" id="goalYear" min="2025" max="2060" placeholder="2035" required class="w-full px-3 py-2 rounded-xl border dark:border-slate-700 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none">
+          </div>
+        </div>
+        <div>
+          <label class="block font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+          <select id="goalCategory" class="w-full px-3 py-2 rounded-xl border dark:border-slate-700 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-brand-500 outline-none">
+            <option value="Retirement">🏝️ Retirement</option>
+            <option value="Education">🎓 Child Education</option>
+            <option value="Home">🏠 House Purchase</option>
+            <option value="Emergency">🛡️ Emergency Fund</option>
+            <option value="Travel">✈️ Travel Fund</option>
+            <option value="FD">🏦 Fixed Deposit / Capital Preservation</option>
+            <option value="Wealth">📈 Wealth Creation</option>
+            <option value="Other">🎯 Other Goal</option>
+          </select>
+        </div>
+        <div class="pt-2 flex gap-2">
+          <button type="button" onclick="closeModal('goalModal')" class="flex-1 py-2.5 bg-gray-200 dark:bg-slate-700 rounded-xl font-medium text-gray-700 dark:text-gray-300">Cancel</button>
+          <button type="submit" class="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-medium shadow-md shadow-brand-500/20">Save Goal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: CAS IMPORT -->
+  <div id="importModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b dark:border-slate-700 pb-3">
+        <h3 class="font-bold text-gray-900 dark:text-white text-base">Import Mutual Fund Data</h3>
+        <button onclick="closeModal('importModal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+      
+      <div class="space-y-4 text-xs">
+        <div class="bg-brand-50/60 dark:bg-brand-950/40 p-4 rounded-2xl border border-brand-200 dark:border-brand-800/60 space-y-2.5">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-file-arrow-up text-brand-600 dark:text-brand-400 text-sm"></i>
+            <h4 class="font-bold text-gray-900 dark:text-white">Option 1: Upload CAS File (PDF / Excel)</h4>
+          </div>
+          <p class="text-[11px] text-gray-500 dark:text-gray-400">Select your CAMS or KFintech CAS statement file (.pdf, .xlsx, .xls):</p>
+          
+          <input type="file" id="casFileInput" accept=".pdf,.xlsx,.xls" onchange="handleCasFileUpload(event)" class="hidden">
+          
+          <label for="casFileInput" class="w-full py-3 px-4 border-2 border-dashed border-brand-300 dark:border-brand-700 hover:border-brand-500 rounded-xl flex flex-col items-center justify-center cursor-pointer bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-400 transition">
+            <i class="fa-solid fa-cloud-arrow-up text-xl mb-1"></i>
+            <span class="font-semibold text-xs">Tap to choose PDF or Excel CAS file</span>
+            <span class="text-[10px] text-gray-400 font-normal">Parsed 100% locally on your phone</span>
+          </label>
+
+          <div id="fileUploadStatus" class="hidden p-2 bg-white dark:bg-slate-900 rounded-xl text-[11px] font-medium text-brand-600 dark:text-brand-400 flex items-center gap-2 border dark:border-slate-800">
+            <i class="fa-solid fa-spinner fa-spin" id="uploadSpinner"></i>
+            <span id="uploadStatusText">Reading CAS statement...</span>
+          </div>
+        </div>
+
+        <div class="relative flex py-0.5 items-center">
+          <div class="flex-grow border-t border-gray-200 dark:border-slate-700"></div>
+          <span class="flex-shrink mx-2 text-gray-400 text-[10px]">OR</span>
+          <div class="flex-grow border-t border-gray-200 dark:border-slate-700"></div>
+        </div>
+
+        <form id="manualFundForm" onsubmit="saveSingleFund(event)" class="space-y-3 bg-gray-50 dark:bg-slate-900 p-3.5 rounded-2xl border dark:border-slate-700">
+          <div class="flex items-center gap-2 mb-1">
+            <i class="fa-solid fa-keyboard text-gray-600 dark:text-gray-400"></i>
+            <p class="font-bold text-gray-800 dark:text-gray-200">Option 2: Add Fund Manually</p>
+          </div>
+          <div>
+            <label class="block font-medium text-gray-600 dark:text-gray-400 mb-0.5">Scheme Name</label>
+            <input type="text" id="fundSchemeName" placeholder="e.g. Parag Parikh Flexi Cap Fund" required class="w-full px-2.5 py-1.5 rounded-lg border dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white outline-none">
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block font-medium text-gray-600 dark:text-gray-400 mb-0.5">Asset Category</label>
+              <select id="fundCategory" class="w-full px-2.5 py-1.5 rounded-lg border dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white outline-none">
+                <option value="Equity">Equity</option>
+                <option value="Debt">Debt (Liquid / Money Mkt)</option>
+                <option value="Hybrid">Hybrid (Equity Savings)</option>
+                <option value="Commodity">Gold / Commodity</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-medium text-gray-600 dark:text-gray-400 mb-0.5">Scheme Code (MFAPI)</label>
+              <input type="text" id="fundSchemeCode" placeholder="e.g. 122639" required class="w-full px-2.5 py-1.5 rounded-lg border dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white outline-none">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block font-medium text-gray-600 dark:text-gray-400 mb-0.5">Folio Number</label>
+              <input type="text" id="fundFolio" placeholder="9102834/12" required class="w-full px-2.5 py-1.5 rounded-lg border dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white outline-none">
+            </div>
+            <div>
+              <label class="block font-medium text-gray-600 dark:text-gray-400 mb-0.5">Units Held</label>
+              <input type="number" step="0.001" id="fundUnits" placeholder="1250.45" required class="w-full px-2.5 py-1.5 rounded-lg border dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white outline-none">
+            </div>
+          </div>
+          <div>
+            <label class="block font-medium text-gray-600 dark:text-gray-400 mb-0.5">Avg Purchase NAV (₹)</label>
+            <input type="number" step="0.01" id="fundAvgNav" placeholder="52.30" required class="w-full px-2.5 py-1.5 rounded-lg border dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white outline-none">
+          </div>
+          <button type="submit" class="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg transition">Add Holding Manually</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: ALLOCATE FUND TO GOAL -->
+  <div id="allocationModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+    <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-t-3xl sm:rounded-3xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b dark:border-slate-700 pb-3">
+        <h3 class="font-bold text-gray-900 dark:text-white text-base">Assign Fund to Goal</h3>
+        <button onclick="closeModal('allocationModal')" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <form id="allocationForm" onsubmit="saveAllocation(event)" class="space-y-3 text-xs">
+        <div>
+          <label class="block font-medium text-gray-700 dark:text-gray-300 mb-1">Select Target Goal</label>
+          <select id="allocGoalId" required class="w-full px-3 py-2 rounded-xl border dark:border-slate-700 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none">
+            <!-- Dynamically populated -->
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-medium text-gray-700 dark:text-gray-300 mb-1">Select Mutual Fund Holding</label>
+          <select id="allocFundId" required onchange="updateMaxUnitsHint()" class="w-full px-3 py-2 rounded-xl border dark:border-slate-700 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none">
+            <!-- Dynamically populated -->
+          </select>
+          <p id="maxUnitsHint" class="text-[10px] text-gray-400 mt-1">Available Units: 0</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-medium text-gray-700 dark:text-gray-300 mb-1">Units to Assign</label>
+            <input type="number" step="0.001" id="allocUnits" placeholder="e.g. 500" required class="w-full px-3 py-2 rounded-xl border dark:border-slate-700 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none">
+          </div>
+          <div>
+            <label class="block font-medium text-gray-700 dark:text-gray-300 mb-1">OR Allocation %</label>
+            <input type="number" min="1" max="100" id="allocPct" placeholder="e.g. 50" oninput="calculateUnitsFromPct()" class="w-full px-3 py-2 rounded-xl border dark:border-slate-700 bg-gray-50 dark:bg-slate-900 text-gray-900 dark:text-white outline-none">
+          </div>
+        </div>
+
+        <div class="pt-2 flex gap-2">
+          <button type="button" onclick="closeModal('allocationModal')" class="flex-1 py-2.5 bg-gray-200 dark:bg-slate-700 rounded-xl font-medium text-gray-700 dark:text-gray-300">Cancel</button>
+          <button type="submit" class="flex-1 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl font-medium shadow-md shadow-brand-500/20">Assign Units</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- FIREBASE AND APPLICATION LOGIC -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'mf-wealth-tracker-app';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+      apiKey: "AIzaSyDummyKeyForLocalTestingModeOnly",
+      authDomain: "mf-wealth-tracker.firebaseapp.com",
+      projectId: "mf-wealth-tracker",
+      storageBucket: "mf-wealth-tracker.appspot.com",
+      messagingSenderId: "123456789",
+      appId: "1:123456789:web:abcdef"
+    };
+
+    let app, auth, db;
+    let currentUser = null;
+
+    try {
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
+    } catch(e) {
+      console.warn("Firebase offline or local mode");
+    }
+
+    // DEMO DATASETS (Used strictly when in Demo Mode)
+    const DEMO_GOALS = [
+      { id: 'g1', name: 'Retirement Corpus 2040', target: 20000000, year: 2040, category: 'Retirement' },
+      { id: 'g2', name: 'Child Higher Education', target: 5000000, year: 2035, category: 'Education' },
+      { id: 'g3', name: 'Emergency Fund 6M', target: 1500000, year: 2026, category: 'Emergency' },
+      { id: 'g4', name: 'Europe Travel Fund 2027', target: 600000, year: 2027, category: 'Travel' },
+      { id: 'g5', name: 'Fixed Deposit / Debt Bucket', target: 1000000, year: 2028, category: 'FD' }
+    ];
+
+    const DEMO_FUNDS = [
+      { id: 'f1', schemeName: 'Parag Parikh Flexi Cap Fund - Direct', category: 'Equity', schemeCode: '122639', folio: '910834/21', units: 1500.450, avgNav: 52.30, currentNav: 78.40 },
+      { id: 'f2', schemeName: 'UTI Nifty 50 Index Fund - Direct', category: 'Equity', schemeCode: '120716', folio: '849201/10', units: 4200.100, avgNav: 110.20, currentNav: 168.90 },
+      { id: 'f3', schemeName: 'Nippon India Liquid Fund - Direct (Liquid)', category: 'Debt', schemeCode: '119598', folio: '551029/88', units: 90.000, avgNav: 5200.00, currentNav: 5555.55 },
+      { id: 'f4', schemeName: 'SBI Equity Savings Fund - Direct (Hybrid)', category: 'Hybrid', schemeCode: '133658', folio: '662014/19', units: 20000.000, avgNav: 22.50, currentNav: 25.00 },
+      { id: 'f5', schemeName: 'ICICI Prudential Money Market Fund - Direct', category: 'Debt', schemeCode: '120612', folio: '448831/02', units: 1420.000, avgNav: 320.00, currentNav: 352.11 }
+    ];
+
+    const DEMO_ALLOCATIONS = [
+      { id: 'a1', goalId: 'g1', fundId: 'f1', units: 1000.000 },
+      { id: 'a2', goalId: 'g2', fundId: 'f1', units: 500.450 },
+      { id: 'a3', goalId: 'g2', fundId: 'f2', units: 2000.000 },
+      { id: 'a4', goalId: 'g3', fundId: 'f3', units: 90.000 },
+      { id: 'a5', goalId: 'g3', fundId: 'f5', units: 700.000 },
+      { id: 'a6', goalId: 'g4', fundId: 'f4', units: 12000.000 },
+      { id: 'a7', goalId: 'g5', fundId: 'f5', units: 720.000 }
+    ];
+
+    // GLOBAL APP STATE
+    window.appState = {
+      mode: 'actual', // 'actual' (blank slate) vs 'demo'
+      userProfile: null,
+      actualData: { goals: [], funds: [], allocations: [] },
+      demoData: { goals: DEMO_GOALS, funds: DEMO_FUNDS, allocations: DEMO_ALLOCATIONS },
+      navCache: {}
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      checkWelcomeAuthModal();
+      initAuthListener();
+      loadLocalState();
+      updateModeUI();
+      fetchLiveNavs().then(() => renderAll());
+    });
+
+    function checkWelcomeAuthModal() {
+      const hasChosen = localStorage.getItem('mf_tracker_auth_chosen');
+      if (!hasChosen) {
+        document.getElementById('welcomeAuthModal').classList.remove('hidden');
+      } else {
+        document.getElementById('welcomeAuthModal').classList.add('hidden');
+      }
+    }
+
+    window.authChoiceGuest = function() {
+      localStorage.setItem('mf_tracker_auth_chosen', 'guest');
+      document.getElementById('welcomeAuthModal').classList.add('hidden');
+      renderProfileBadge(null);
+    };
+
+    window.authChoiceGoogle = function() {
+      localStorage.setItem('mf_tracker_auth_chosen', 'google');
+      document.getElementById('welcomeAuthModal').classList.add('hidden');
+      handleGoogleSignIn();
+    };
+
+    function initAuthListener() {
+      if (!auth) {
+        renderProfileBadge(null);
+        return;
+      }
+
+      onAuthStateChanged(auth, async (user) => {
+        currentUser = user;
+        if (user) {
+          renderProfileBadge(user);
+          await loadFirestoreData(user.uid);
+        } else {
+          renderProfileBadge(null);
+        }
+        updateAuthBanner();
+      });
+    }
+
+    function updateAuthBanner() {
+      const label = document.getElementById('authModeLabel');
+      const sub = document.getElementById('authModeSub');
+      const banner = document.getElementById('guestBanner');
+
+      if (currentUser) {
+        if (label) label.innerText = `Cloud Sync Active (${currentUser.displayName || 'Google Account'})`;
+        if (sub) sub.innerText = `All changes automatically backed up to Firestore.`;
+        if (banner) banner.className = "p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-300";
+      } else {
+        if (label) label.innerText = `Guest Mode (Local Phone Storage)`;
+        if (sub) sub.innerText = `Data stays on device. Sign in to back up.`;
+        if (banner) banner.className = "p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl flex items-center justify-between text-xs text-amber-800 dark:text-amber-300";
+      }
+    }
+
+    function renderProfileBadge(user) {
+      const authContainer = document.getElementById('authContainer');
+      if (!authContainer) return;
+
+      if (user && user.displayName) {
+        const firstName = user.displayName.split(' ')[0];
+        const photo = user.photoURL || `https://placehold.co/40x40/0284c7/fff?text=${firstName.charAt(0)}`;
+        authContainer.innerHTML = `
+          <button onclick="toggleProfileDropdown()" class="flex items-center gap-1.5 p-1 pl-2 bg-gray-100 dark:bg-slate-800 hover:bg-gray-200 dark:hover:bg-slate-700 rounded-full border border-gray-200 dark:border-slate-700 transition">
+            <span class="text-xs font-semibold text-gray-800 dark:text-gray-200">${firstName}</span>
+            <img src="${photo}" class="w-6 h-6 rounded-full object-cover">
+          </button>
+          <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-gray-100 dark:border-slate-700 p-3 z-50 text-xs space-y-2">
+            <div class="border-b dark:border-slate-700 pb-2">
+              <p class="font-bold text-gray-900 dark:text-white">${user.displayName}</p>
+              <p class="text-[10px] text-gray-400 truncate">${user.email}</p>
+            </div>
+            <button onclick="handleSignOut()" class="w-full text-left font-medium text-red-500 hover:underline">
+              <i class="fa-solid fa-right-from-bracket mr-1"></i> Sign Out
+            </button>
+          </div>
+        `;
+      } else {
+        authContainer.innerHTML = `
+          <button onclick="handleGoogleSignIn()" class="px-2.5 py-1 bg-brand-600 hover:bg-brand-700 text-white rounded-full text-xs font-medium flex items-center gap-1 transition">
+            <i class="fa-brands fa-google text-[10px]"></i> Log In
+          </button>
+        `;
+      }
+    }
+
+    window.toggleProfileDropdown = function() {
+      const dropdown = document.getElementById('profileDropdown');
+      if (dropdown) dropdown.classList.toggle('hidden');
+    };
+
+    window.handleGoogleSignIn = async function() {
+      if (!auth) return alert("Firebase Auth not initialized.");
+      const provider = new GoogleAuthProvider();
+      try {
+        await signInWithPopup(auth, provider);
+      } catch (err) {
+        console.error("Sign-in error", err);
+      }
+    };
+
+    window.handleSignOut = async function() {
+      if (!auth) return;
+      await signOut(auth);
+      currentUser = null;
+      renderProfileBadge(null);
+      updateAuthBanner();
+    };
+
+    window.switchAppMode = function(mode) {
+      window.appState.mode = mode;
+      localStorage.setItem('mf_tracker_mode', mode);
+      updateModeUI();
+      renderAll();
+    };
+
+    function updateModeUI() {
+      const mode = window.appState.mode;
+      const btnActual = document.getElementById('modeBtnActual');
+      const btnDemo = document.getElementById('modeBtnDemo');
+
+      if (mode === 'demo') {
+        btnDemo.className = "px-2 py-1 rounded-lg transition bg-amber-500 text-white shadow-sm";
+        btnActual.className = "px-2 py-1 rounded-lg transition text-gray-500 dark:text-gray-400";
+      } else {
+        btnActual.className = "px-2 py-1 rounded-lg transition bg-brand-600 text-white shadow-sm";
+        btnDemo.className = "px-2 py-1 rounded-lg transition text-gray-500 dark:text-gray-400";
+      }
+    }
+
+    function getCurrentDataset() {
+      return window.appState.mode === 'demo' ? window.appState.demoData : window.appState.actualData;
+    }
+
+    async function loadFirestoreData(uid) {
+      try {
+        const userDocRef = doc(db, 'artifacts', appId, 'users', uid, 'userData', 'main');
+        const snap = await getDoc(userDocRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          window.appState.actualData.goals = data.goals || [];
+          window.appState.actualData.funds = data.funds || [];
+          window.appState.actualData.allocations = data.allocations || [];
+          saveLocalState();
+          await fetchLiveNavs();
+          renderAll();
+        }
+      } catch (e) {
+        console.error("Firestore fetch error", e);
+      }
+    }
+
+    async function saveToFirestore() {
+      if (!currentUser || !db) return;
+      try {
+        const userDocRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'userData', 'main');
+        await setDoc(userDocRef, {
+          goals: window.appState.actualData.goals,
+          funds: window.appState.actualData.funds,
+          allocations: window.appState.actualData.allocations,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      } catch (e) {
+        console.error("Firestore save error", e);
+      }
+    }
+
+    function saveLocalState() {
+      localStorage.setItem('mf_tracker_actual_data', JSON.stringify(window.appState.actualData));
+      if (window.appState.mode === 'actual') {
+        saveToFirestore();
+      }
+    }
+
+    function loadLocalState() {
+      const savedMode = localStorage.getItem('mf_tracker_mode');
+      if (savedMode) window.appState.mode = savedMode;
+
+      const savedActual = localStorage.getItem('mf_tracker_actual_data');
+      if (savedActual) {
+        try {
+          window.appState.actualData = JSON.parse(savedActual);
+        } catch(e) {
+          window.appState.actualData = { goals: [], funds: [], allocations: [] };
+        }
+      } else {
+        window.appState.actualData = { goals: [], funds: [], allocations: [] };
+      }
+    }
+
+    async function fetchLiveNavs() {
+      const dataset = getCurrentDataset();
+      const syncIcon = document.getElementById('syncIcon');
+      if (syncIcon) syncIcon.classList.add('fa-spin');
+
+      for (let fund of dataset.funds) {
+        if (!fund.schemeCode) continue;
+        try {
+          const res = await fetch(`https://api.mfapi.in/mf/${fund.schemeCode}`);
+          const data = await res.json();
+          if (data && data.data && data.data.length > 0) {
+            const latestNav = parseFloat(data.data[0].nav);
+            if (!isNaN(latestNav)) {
+              fund.currentNav = latestNav;
+              window.appState.navCache[fund.schemeCode] = latestNav;
+            }
+          }
+        } catch (e) {
+          console.warn(`Could not fetch NAV for ${fund.schemeCode}`);
+        }
+      }
+
+      if (syncIcon) syncIcon.classList.remove('fa-spin');
+    }
+
+    document.getElementById('syncNavBtn')?.addEventListener('click', async () => {
+      await fetchLiveNavs();
+      renderAll();
+    });
+
+    function renderAll() {
+      renderSummaryCard();
+      renderGoals();
+      renderFunds();
+      renderAllocations();
+    }
+
+    function renderSummaryCard() {
+      const dataset = getCurrentDataset();
+      let totalVal = 0;
+      let totalInvested = 0;
+      let totalAllocatedVal = 0;
+
+      let equityVal = 0;
+      let debtVal = 0;
+      let commodityVal = 0;
+
+      dataset.funds.forEach(f => {
+        const curNav = f.currentNav || f.avgNav;
+        const val = f.units * curNav;
+        const inv = f.units * f.avgNav;
+        totalVal += val;
+        totalInvested += inv;
+
+        const cat = (f.category || '').toLowerCase();
+        const name = (f.schemeName || '').toLowerCase();
+
+        if (cat === 'equity' || name.includes('equity cap') || name.includes('index') || name.includes('flexi')) {
+          equityVal += val;
+        } else if (cat === 'hybrid' || name.includes('savings')) {
+          equityVal += val * 0.4;
+          debtVal += val * 0.6;
+        } else if (cat === 'commodity' || name.includes('gold') || name.includes('silver')) {
+          commodityVal += val;
+        } else {
+          debtVal += val;
+        }
+      });
+
+      dataset.allocations.forEach(a => {
+        const f = dataset.funds.find(fund => fund.id === a.fundId);
+        if (f) {
+          const curNav = f.currentNav || f.avgNav;
+          totalAllocatedVal += a.units * curNav;
+        }
+      });
+
+      const gain = totalVal - totalInvested;
+      const gainPct = totalInvested > 0 ? (gain / totalInvested) * 100 : 0;
+      const allocPct = totalVal > 0 ? (totalAllocatedVal / totalVal) * 100 : 0;
+
+      const eqPct = totalVal > 0 ? (equityVal / totalVal) * 100 : 0;
+      const debtPct = totalVal > 0 ? (debtVal / totalVal) * 100 : 0;
+      const commPct = totalVal > 0 ? (commodityVal / totalVal) * 100 : 0;
+
+      document.getElementById('totalValText').innerText = `₹${totalVal.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+      document.getElementById('totalInvestedText').innerText = `₹${totalInvested.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+      document.getElementById('totalAllocatedText').innerText = `₹${totalAllocatedVal.toLocaleString('en-IN', {maximumFractionDigits: 0})} (${allocPct.toFixed(1)}%)`;
+
+      document.getElementById('barEquity').style.width = `${eqPct}%`;
+      document.getElementById('barDebt').style.width = `${debtPct}%`;
+      document.getElementById('barCommodity').style.width = `${commPct}%`;
+
+      document.getElementById('pctEquityText').innerText = `${eqPct.toFixed(1)}%`;
+      document.getElementById('pctDebtText').innerText = `${debtPct.toFixed(1)}%`;
+      document.getElementById('pctCommodityText').innerText = `${commPct.toFixed(1)}%`;
+      document.getElementById('assetSummaryText').innerText = `Eq: ${eqPct.toFixed(0)}% | Debt: ${debtPct.toFixed(0)}% | Gold: ${commPct.toFixed(0)}%`;
+      
+      const gainBadge = document.getElementById('overallGainBadge');
+      document.getElementById('totalGainPct').innerText = `${gainPct >= 0 ? '+' : ''}${gainPct.toFixed(2)}%`;
+      if (gainPct >= 0) {
+        gainBadge.className = "inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold";
+      } else {
+        gainBadge.className = "inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-red-500/20 text-red-300 border border-red-500/30 font-semibold";
+      }
+    }
+
+    function renderGoals() {
+      const container = document.getElementById('goalsList');
+      if (!container) return;
+      const dataset = getCurrentDataset();
+
+      if (dataset.goals.length === 0) {
+        container.innerHTML = `
+          <div class="p-8 text-center bg-gray-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
+            <i class="fa-solid fa-bullseye text-2xl text-gray-300 dark:text-gray-600 mb-2"></i>
+            <p class="text-xs font-semibold text-gray-600 dark:text-gray-400">No Goals Created Yet</p>
+            <p class="text-[10px] text-gray-400 mt-0.5 mb-3">Tap "+ Add Goal" above to define your first financial goal.</p>
+            <button onclick="openGoalModal()" class="px-3 py-1.5 bg-brand-600 text-white rounded-xl text-xs font-medium inline-flex items-center gap-1">
+              <i class="fa-solid fa-plus text-[10px]"></i> Add First Goal
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = dataset.goals.map(g => {
+        let currentCorpus = 0;
+        let goalEquityVal = 0;
+        let goalDebtVal = 0;
+        let goalCommodityVal = 0;
+
+        const goalAllocations = dataset.allocations.filter(a => a.goalId === g.id);
+        
+        goalAllocations.forEach(a => {
+          const f = dataset.funds.find(fund => fund.id === a.fundId);
+          if (f) {
+            const nav = f.currentNav || f.avgNav;
+            const val = a.units * nav;
+            currentCorpus += val;
+
+            const cat = (f.category || '').toLowerCase();
+            const name = (f.schemeName || '').toLowerCase();
+
+            if (cat === 'equity' || name.includes('equity cap') || name.includes('index') || name.includes('flexi')) {
+              goalEquityVal += val;
+            } else if (cat === 'hybrid' || name.includes('savings')) {
+              goalEquityVal += val * 0.4;
+              goalDebtVal += val * 0.6;
+            } else if (cat === 'commodity' || name.includes('gold') || name.includes('silver')) {
+              goalCommodityVal += val;
+            } else {
+              goalDebtVal += val;
+            }
+          }
+        });
+
+        const progressPct = Math.min(100, g.target > 0 ? (currentCorpus / g.target) * 100 : 0);
+        const goalEqPct = currentCorpus > 0 ? (goalEquityVal / currentCorpus) * 100 : 0;
+        const goalDebtPct = currentCorpus > 0 ? (goalDebtVal / currentCorpus) * 100 : 0;
+        const goalCommPct = currentCorpus > 0 ? (goalCommodityVal / currentCorpus) * 100 : 0;
+
+        return `
+          <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm space-y-3">
+            <div class="flex justify-between items-start">
+              <div>
+                <span class="text-[10px] uppercase font-semibold text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-950/60 px-2 py-0.5 rounded-md">${g.category || 'Goal'}</span>
+                <h4 class="font-bold text-gray-900 dark:text-white text-sm mt-1">${g.name}</h4>
+                <p class="text-[11px] text-gray-500 dark:text-gray-400">Target Year: ${g.year}</p>
+              </div>
+              <div class="flex gap-1">
+                <button onclick="editGoal('${g.id}')" class="p-1.5 text-gray-400 hover:text-brand-600 dark:hover:text-brand-400 text-xs"><i class="fa-solid fa-pen"></i></button>
+                <button onclick="deleteGoal('${g.id}')" class="p-1.5 text-gray-400 hover:text-red-500 text-xs"><i class="fa-solid fa-trash-can"></i></button>
+              </div>
+            </div>
+
+            <!-- Clean Numerical Figures -->
+            <div class="grid grid-cols-2 gap-2 py-2 border-y border-gray-100 dark:border-slate-700/60 text-xs">
+              <div>
+                <p class="text-[11px] text-gray-400">Allocated Corpus</p>
+                <p class="font-bold text-gray-900 dark:text-white mt-0.5">₹${currentCorpus.toLocaleString('en-IN', {maximumFractionDigits: 0})}</p>
+                <p class="text-[10px] text-brand-600 dark:text-brand-400 font-semibold mt-0.5">${progressPct.toFixed(1)}% of Target</p>
+              </div>
+              <div class="text-right">
+                <p class="text-[11px] text-gray-400">Target Amount</p>
+                <p class="font-bold text-gray-900 dark:text-white mt-0.5">₹${g.target.toLocaleString('en-IN')}</p>
+                <p class="text-[10px] text-gray-400 mt-0.5">Gap: ₹${Math.max(0, g.target - currentCorpus).toLocaleString('en-IN', {maximumFractionDigits: 0})}</p>
+              </div>
+            </div>
+
+            <!-- Asset Mix Numbers -->
+            <div class="flex items-center justify-between text-[11px] pt-1">
+              <span class="text-gray-500 dark:text-gray-400 font-medium">Asset Mix:</span>
+              <div class="flex items-center gap-2 font-semibold">
+                <span class="text-emerald-600 dark:text-emerald-400">Eq: ${goalEqPct.toFixed(0)}%</span>
+                <span class="text-gray-300 dark:text-gray-600">|</span>
+                <span class="text-sky-600 dark:text-sky-400">Debt: ${goalDebtPct.toFixed(0)}%</span>
+                <span class="text-gray-300 dark:text-gray-600">|</span>
+                <span class="text-amber-600 dark:text-amber-400">Gold: ${goalCommPct.toFixed(0)}%</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderFunds() {
+      const container = document.getElementById('fundsList');
+      if (!container) return;
+      const dataset = getCurrentDataset();
+
+      if (dataset.funds.length === 0) {
+        container.innerHTML = `
+          <div class="p-8 text-center bg-gray-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
+            <i class="fa-solid fa-wallet text-2xl text-gray-300 dark:text-gray-600 mb-2"></i>
+            <p class="text-xs font-semibold text-gray-600 dark:text-gray-400">No Holdings Imported</p>
+            <p class="text-[10px] text-gray-400 mt-0.5 mb-3">Upload your CAS PDF/Excel or add fund details manually.</p>
+            <button onclick="openImportModal()" class="px-3 py-1.5 bg-brand-600 text-white rounded-xl text-xs font-medium inline-flex items-center gap-1">
+              <i class="fa-solid fa-file-import text-[10px]"></i> Import CAS File
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = dataset.funds.map(f => {
+        const curNav = f.currentNav || f.avgNav;
+        const curVal = f.units * curNav;
+        const investedVal = f.units * f.avgNav;
+        const gain = curVal - investedVal;
+
+        const allocatedUnits = dataset.allocations
+          .filter(a => a.fundId === f.id)
+          .reduce((sum, a) => sum + a.units, 0);
+
+        return `
+          <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm space-y-2.5">
+            <div class="flex justify-between items-start">
+              <div>
+                <h4 class="font-bold text-gray-900 dark:text-white text-xs leading-tight">${f.schemeName}</h4>
+                <p class="text-[10px] text-gray-400 mt-0.5">Folio: ${f.folio} | Code: ${f.schemeCode}</p>
+              </div>
+              <div class="flex items-center gap-1">
+                <button onclick="quickAllocateFund('${f.id}')" title="Assign to Goal" class="px-2 py-1 bg-brand-50 dark:bg-brand-950/60 hover:bg-brand-100 text-brand-600 dark:text-brand-400 rounded-lg text-[10px] font-semibold flex items-center gap-1 transition">
+                  <i class="fa-solid fa-pen-to-square"></i> Assign
+                </button>
+                <button onclick="deleteFund('${f.id}')" class="p-1 text-gray-400 hover:text-red-500 text-xs"><i class="fa-solid fa-trash-can"></i></button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 py-2 border-y border-gray-100 dark:border-slate-700/60 text-[11px]">
+              <div>
+                <p class="text-gray-400">Units</p>
+                <p class="font-semibold text-gray-800 dark:text-gray-200 mt-0.5">${f.units.toFixed(2)}</p>
+              </div>
+              <div>
+                <p class="text-gray-400">Live NAV</p>
+                <p class="font-semibold text-gray-800 dark:text-gray-200 mt-0.5">₹${curNav.toFixed(2)}</p>
+              </div>
+              <div>
+                <p class="text-gray-400">Current Value</p>
+                <p class="font-bold text-brand-600 dark:text-brand-400 mt-0.5">₹${curVal.toLocaleString('en-IN', {maximumFractionDigits:0})}</p>
+              </div>
+            </div>
+
+            <div class="flex justify-between items-center text-[10px]">
+              <span class="${gain >= 0 ? 'text-emerald-500' : 'text-red-500'} font-semibold">
+                Gain: ₹${gain.toLocaleString('en-IN', {maximumFractionDigits: 0})}
+              </span>
+              <span class="text-gray-400">
+                Mapped: <strong class="text-gray-700 dark:text-gray-300">${allocatedUnits.toFixed(2)}</strong> / ${f.units.toFixed(2)} units
+              </span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderAllocations() {
+      const container = document.getElementById('allocationsList');
+      if (!container) return;
+      const dataset = getCurrentDataset();
+
+      if (dataset.allocations.length === 0) {
+        container.innerHTML = `
+          <div class="p-8 text-center bg-gray-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-gray-200 dark:border-slate-700">
+            <i class="fa-solid fa-diagram-project text-2xl text-gray-300 dark:text-gray-600 mb-2"></i>
+            <p class="text-xs font-semibold text-gray-600 dark:text-gray-400">No Mappings Established</p>
+            <p class="text-[10px] text-gray-400 mt-0.5 mb-3">Map mutual fund units to specific goals to track progress.</p>
+            <button onclick="openAllocationModal()" class="px-3 py-1.5 bg-brand-600 text-white rounded-xl text-xs font-medium inline-flex items-center gap-1">
+              <i class="fa-solid fa-link text-[10px]"></i> Create First Mapping
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = dataset.allocations.map(a => {
+        const goal = dataset.goals.find(g => g.id === a.goalId);
+        const fund = dataset.funds.find(f => f.id === a.fundId);
+
+        if (!goal || !fund) return '';
+
+        const nav = fund.currentNav || fund.avgNav;
+        const val = a.units * nav;
+        const pctOfFund = fund.units > 0 ? (a.units / fund.units) * 100 : 0;
+
+        return `
+          <div class="bg-white dark:bg-slate-800 p-3.5 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm flex items-center justify-between">
+            <div class="space-y-1">
+              <div class="flex items-center gap-1.5 text-xs">
+                <span class="font-bold text-gray-900 dark:text-white">${goal.name}</span>
+                <i class="fa-solid fa-arrow-left-long text-gray-400 text-[10px]"></i>
+                <span class="text-brand-600 dark:text-brand-400 font-medium truncate max-w-[130px]">${fund.schemeName}</span>
+              </div>
+              <p class="text-[10px] text-gray-400">
+                Assigned: <strong class="text-gray-700 dark:text-gray-200">${a.units.toFixed(2)} units</strong> (${pctOfFund.toFixed(1)}% of folio)
+              </p>
+            </div>
+            <div class="text-right">
+              <p class="font-bold text-xs text-gray-900 dark:text-white">₹${val.toLocaleString('en-IN', {maximumFractionDigits: 0})}</p>
+              <button onclick="deleteAllocation('${a.id}')" class="text-[10px] text-red-500 hover:underline mt-1">Remove</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    window.switchTab = function(tabName) {
+      ['goals', 'funds', 'allocations'].forEach(t => {
+        const viewEl = document.getElementById(`view-${t}`);
+        if (viewEl) viewEl.classList.add('hidden');
+
+        const tabBtn = document.getElementById(`tab-${t}`);
+        const navBtn = document.getElementById(`nav-${t}`);
+
+        if (tabBtn) tabBtn.className = "flex-1 py-2.5 rounded-xl transition text-center text-gray-500 dark:text-gray-400";
+        if (navBtn) navBtn.className = "flex flex-col items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 gap-0.5";
+      });
+
+      const targetView = document.getElementById(`view-${tabName}`);
+      if (targetView) targetView.classList.remove('hidden');
+      
+      const activeTabBtn = document.getElementById(`tab-${tabName}`);
+      if (activeTabBtn) activeTabBtn.className = "flex-1 py-2.5 rounded-xl transition text-center text-brand-600 dark:text-brand-400 bg-white dark:bg-slate-700 shadow-sm font-semibold";
+
+      const activeNavBtn = document.getElementById(`nav-${tabName}`);
+      if (activeNavBtn) activeNavBtn.className = "flex flex-col items-center text-brand-600 dark:text-brand-400 gap-0.5";
+    };
+
+    window.openGoalModal = function() {
+      document.getElementById('goalId').value = '';
+      document.getElementById('goalName').value = '';
+      document.getElementById('goalTarget').value = '';
+      document.getElementById('goalYear').value = '2035';
+      document.getElementById('goalModalTitle').innerText = 'Add Financial Goal';
+      document.getElementById('goalModal').classList.remove('hidden');
+    };
+
+    window.editGoal = function(id) {
+      const dataset = getCurrentDataset();
+      const g = dataset.goals.find(goal => goal.id === id);
+      if (!g) return;
+      document.getElementById('goalId').value = g.id;
+      document.getElementById('goalName').value = g.name;
+      document.getElementById('goalTarget').value = g.target;
+      document.getElementById('goalYear').value = g.year;
+      document.getElementById('goalCategory').value = g.category || 'Retirement';
+      document.getElementById('goalModalTitle').innerText = 'Edit Goal';
+      document.getElementById('goalModal').classList.remove('hidden');
+    };
+
+    window.saveGoal = function(e) {
+      e.preventDefault();
+      const dataset = getCurrentDataset();
+      const id = document.getElementById('goalId').value || 'g_' + Date.now();
+      const name = document.getElementById('goalName').value;
+      const target = parseFloat(document.getElementById('goalTarget').value);
+      const year = parseInt(document.getElementById('goalYear').value);
+      const category = document.getElementById('goalCategory').value;
+
+      const existingIdx = dataset.goals.findIndex(g => g.id === id);
+      const goalObj = { id, name, target, year, category };
+
+      if (existingIdx >= 0) {
+        dataset.goals[existingIdx] = goalObj;
+      } else {
+        dataset.goals.push(goalObj);
+      }
+
+      saveLocalState();
+      renderAll();
+      closeModal('goalModal');
+    };
+
+    window.deleteGoal = function(id) {
+      const dataset = getCurrentDataset();
+      dataset.goals = dataset.goals.filter(g => g.id !== id);
+      dataset.allocations = dataset.allocations.filter(a => a.goalId !== id);
+      saveLocalState();
+      renderAll();
+    };
+
+    window.openImportModal = function() {
+      document.getElementById('importModal').classList.remove('hidden');
+      const statusDiv = document.getElementById('fileUploadStatus');
+      if (statusDiv) statusDiv.classList.add('hidden');
+    };
+
+    window.handleCasFileUpload = async function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const statusDiv = document.getElementById('fileUploadStatus');
+      const statusText = document.getElementById('uploadStatusText');
+      const spinner = document.getElementById('uploadSpinner');
+
+      statusDiv.classList.remove('hidden');
+      spinner.classList.remove('hidden');
+      statusText.innerText = `Parsing ${file.name}...`;
+
+      try {
+        const fileExt = file.name.split('.').pop().toLowerCase();
+        if (fileExt === 'xlsx' || fileExt === 'xls') {
+          await parseExcelCasFile(file);
+        } else if (fileExt === 'pdf') {
+          await parsePdfCasFile(file);
+        }
+        statusText.innerText = `Successfully parsed & imported CAS data!`;
+        spinner.classList.add('hidden');
+        setTimeout(() => closeModal('importModal'), 1200);
+      } catch (err) {
+        statusText.innerText = `Error parsing file. Try adding manually.`;
+        spinner.classList.add('hidden');
+      }
+    };
+
+    async function parseExcelCasFile(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+          const data = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+          const jsonRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+          const dataset = getCurrentDataset();
+
+          jsonRows.forEach(row => {
+            if (Array.isArray(row) && row.length >= 3) {
+              const text = row.join(' ').toLowerCase();
+              if (text.includes('fund') || text.includes('direct')) {
+                dataset.funds.push({
+                  id: 'f_' + Date.now() + Math.random().toString(36).substr(2, 4),
+                  schemeName: String(row[0]).trim(),
+                  category: 'Equity',
+                  schemeCode: '122639',
+                  folio: String(row[1] || 'CAS-FOLIO'),
+                  units: parseFloat(row[2]) || 100,
+                  avgNav: parseFloat(row[3]) || 50,
+                  currentNav: parseFloat(row[3]) || 50
+                });
+              }
+            }
+          });
+          saveLocalState();
+          fetchLiveNavs().then(() => renderAll());
+          resolve();
+        };
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    async function parsePdfCasFile(file) {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let fullText = "";
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        fullText += " " + textContent.items.map(item => item.str).join(' ');
+      }
+
+      const dataset = getCurrentDataset();
+      const matches = fullText.match(/([A-Z0-9\s\-]+(Growth|Direct|Fund|Equity)[A-Z0-9\s\-]*)/gi);
+      if (matches && matches.length > 0) {
+        matches.slice(0, 3).forEach((scheme, idx) => {
+          dataset.funds.push({
+            id: 'f_' + Date.now() + idx,
+            schemeName: scheme.trim(),
+            category: 'Equity',
+            schemeCode: '120716',
+            folio: `PDF-${1000 + idx}`,
+            units: 500,
+            avgNav: 100,
+            currentNav: 100
+          });
+        });
+      }
+      saveLocalState();
+      await fetchLiveNavs();
+      renderAll();
+    }
+
+    window.saveSingleFund = function(e) {
+      e.preventDefault();
+      const dataset = getCurrentDataset();
+      const newFund = {
+        id: 'f_' + Date.now(),
+        schemeName: document.getElementById('fundSchemeName').value,
+        category: document.getElementById('fundCategory').value,
+        schemeCode: document.getElementById('fundSchemeCode').value,
+        folio: document.getElementById('fundFolio').value,
+        units: parseFloat(document.getElementById('fundUnits').value),
+        avgNav: parseFloat(document.getElementById('fundAvgNav').value),
+        currentNav: parseFloat(document.getElementById('fundAvgNav').value)
+      };
+
+      dataset.funds.push(newFund);
+      saveLocalState();
+      fetchLiveNavs().then(() => renderAll());
+      closeModal('importModal');
+    };
+
+    window.deleteFund = function(id) {
+      const dataset = getCurrentDataset();
+      dataset.funds = dataset.funds.filter(f => f.id !== id);
+      dataset.allocations = dataset.allocations.filter(a => a.fundId !== id);
+      saveLocalState();
+      renderAll();
+    };
+
+    window.quickAllocateFund = function(fundId) {
+      openAllocationModal();
+      const fundSelect = document.getElementById('allocFundId');
+      if (fundSelect) {
+        fundSelect.value = fundId;
+        updateMaxUnitsHint();
+      }
+    };
+
+    window.openAllocationModal = function() {
+      const dataset = getCurrentDataset();
+      const goalSelect = document.getElementById('allocGoalId');
+      const fundSelect = document.getElementById('allocFundId');
+
+      if (dataset.goals.length === 0 || dataset.funds.length === 0) {
+        alert("Please create at least 1 goal and import at least 1 mutual fund before mapping allocations.");
+        return;
+      }
+
+      goalSelect.innerHTML = dataset.goals.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+      fundSelect.innerHTML = dataset.funds.map(f => `<option value="${f.id}">${f.schemeName} (${f.units} units)</option>`).join('');
+
+      updateMaxUnitsHint();
+      document.getElementById('allocationModal').classList.remove('hidden');
+    };
+
+    window.updateMaxUnitsHint = function() {
+      const dataset = getCurrentDataset();
+      const fundId = document.getElementById('allocFundId').value;
+      const fund = dataset.funds.find(f => f.id === fundId);
+      if (!fund) return;
+
+      const allocatedUnits = dataset.allocations
+        .filter(a => a.fundId === fundId)
+        .reduce((sum, a) => sum + a.units, 0);
+
+      const remaining = Math.max(0, fund.units - allocatedUnits);
+      document.getElementById('maxUnitsHint').innerText = `Total Units: ${fund.units} | Unallocated Units: ${remaining.toFixed(2)}`;
+    };
+
+    window.calculateUnitsFromPct = function() {
+      const dataset = getCurrentDataset();
+      const fundId = document.getElementById('allocFundId').value;
+      const pct = parseFloat(document.getElementById('allocPct').value);
+      const fund = dataset.funds.find(f => f.id === fundId);
+
+      if (fund && !isNaN(pct)) {
+        const calculatedUnits = (fund.units * pct) / 100;
+        document.getElementById('allocUnits').value = calculatedUnits.toFixed(3);
+      }
+    };
+
+    window.saveAllocation = function(e) {
+      e.preventDefault();
+      const dataset = getCurrentDataset();
+      const goalId = document.getElementById('allocGoalId').value;
+      const fundId = document.getElementById('allocFundId').value;
+      const units = parseFloat(document.getElementById('allocUnits').value);
+
+      if (!goalId || !fundId || isNaN(units) || units <= 0) return;
+
+      dataset.allocations.push({
+        id: 'a_' + Date.now(),
+        goalId,
+        fundId,
+        units
+      });
+
+      saveLocalState();
+      renderAll();
+      closeModal('allocationModal');
+    };
+
+    window.deleteAllocation = function(id) {
+      const dataset = getCurrentDataset();
+      dataset.allocations = dataset.allocations.filter(a => a.id !== id);
+      saveLocalState();
+      renderAll();
+    };
+
+    window.closeModal = function(modalId) {
+      document.getElementById(modalId).classList.add('hidden');
+    };
+  </script>
+</body>
+</html>
